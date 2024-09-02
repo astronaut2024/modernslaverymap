@@ -15,8 +15,8 @@
             border-radius: 5px;
             box-shadow: 0 0 15px rgba(0,0,0,0.2);
             position: absolute;
-            pointer-events: none; /* Ensure the info box does not block map interactions */
-            z-index: 1000; /* Make sure the info box is on top */
+            pointer-events: none;
+            z-index: 1000;
         }
         .info h4 {
             margin: 0 0 5px;
@@ -31,10 +31,10 @@
         var map = L.map('map', {
             center: [20, 0],
             zoom: 2,
-            zoomControl: true,
-            doubleClickZoom: true,
-            scrollWheelZoom: true,
-            boxZoom: true,
+            zoomControl: false,
+            doubleClickZoom: false,
+            scrollWheelZoom: false,
+            boxZoom: false,
             dragging: true
         });
 
@@ -61,7 +61,7 @@
 
         var geojson;
         var highlightedLayers = [];
-        var regionLayers = {}; // To store region layers for highlighting
+        var regionLayers = {};
 
         // Fetch GeoJSON data
         fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson')
@@ -70,23 +70,19 @@
                 geojson = L.geoJSON(data, {
                     style: feature => ({
                         fillColor: getRegionColor(getRegionByCountry(feature.properties.name || feature.properties.ADMIN || feature.properties.ADMIN_NAME || "Unknown Country")),
-                        weight: 0, // Border thickness
+                        weight: 0,
                         opacity: 1,
-                        color: '#BBBBBB', // Neutral border color
+                        color: '#BBBBBB',
                         dashArray: '3',
                         fillOpacity: 0.7
                     }),
                     onEachFeature: onEachFeature
                 }).addTo(map);
 
-                // Disable Antarctica and Greenland
                 disableAntarcticaAndGreenland();
-
-                // Create region layers
                 createRegionLayers();
             });
 
-        // Function to get color based on region
         function getRegionColor(region) {
             switch (region) {
                 case "The Americas":
@@ -100,11 +96,27 @@
                 case "Africa":
                     return '#c6ffce'; // Light sky blue
                 default:
-                    return '#FFFFFF'; // Default to white if no region found
+                    return '#FFFFFF';
             }
         }
 
-        // Function to handle feature events
+        function getBorderColor(region) {
+            switch (region) {
+                case "The Americas":
+                    return '#f01132'; // Darker pink
+                case "The Arab States":
+                    return '#bd33b5'; // Darker orange
+                case "Asia and the Pacific":
+                    return '#FFA07A'; // Darker peach
+                case "Europe and Central Asia":
+                    return '#4682B4'; // Darker blue
+                case "Africa":
+                    return '#3CB371'; // Darker green
+                default:
+                    return '#BBBBBB'; // Default border color
+            }
+        }
+
         function onEachFeature(feature, layer) {
             var countryName = feature.properties.name || feature.properties.ADMIN || feature.properties.ADMIN_NAME || "Unknown Country";
             layer.on({
@@ -116,84 +128,76 @@
             });
         }
 
-        // Function to highlight region on hover
         function highlightRegion(e) {
             var layer = e.target;
             var countryName = layer.feature.properties.name || layer.feature.properties.ADMIN || layer.feature.properties.ADMIN_NAME || "Unknown Country";
             var region = getRegionByCountry(countryName);
 
             if (region) {
-                // Reset previously highlighted regions
                 resetHighlight();
 
-                // Highlight new region with specific color
                 var highlightColor = getRegionColor(region);
+                var borderColor = getBorderColor(region);
                 regionLayers[region].forEach(function(layer) {
                     layer.setStyle({
                         fillColor: highlightColor,
-                        weight: 2,
-                        color: highlightColor,
+                        weight: 1,
+                        color: borderColor,
                         dashArray: '',
                         fillOpacity: 0.7
                     });
                     highlightedLayers.push(layer);
                 });
 
-                // Show region name on hover
                 var info = document.createElement('div');
                 info.className = 'info';
                 info.innerHTML = '<h4>' + region + '</h4><p>' + (slaveryData[region] || 'No data available') + '</p>';
                 map.getContainer().appendChild(info);
 
-                // Position the info box based on mouse position
                 map.on('mousemove', function(e) {
-                    info.style.left = e.containerPoint.x + 'px';
-                    info.style.top = e.containerPoint.y + 'px';
+                    info.style.left = e.containerPoint.x + 15 + 'px';
+                    info.style.top = e.containerPoint.y + 15 + 'px';
                 });
             }
         }
 
-        // Function to reset highlight on mouseout
-        function resetHighlight() {
+        function resetHighlight(e) {
             highlightedLayers.forEach(function(layer) {
-                layer.setStyle({
-                    fillOpacity: 0.7,
-                    weight: 0,
-                    color: '#BBBBBB'
-                });
+                geojson.resetStyle(layer);
             });
             highlightedLayers = [];
+
             var info = document.querySelector('.info');
             if (info) {
-                info.remove();
+                map.getContainer().removeChild(info);
             }
         }
 
-        // Function to get region by country name
-        function getRegionByCountry(countryName) {
+        function getRegionByCountry(country) {
             for (var region in regions) {
-                if (regions[region].includes(countryName)) {
+                if (regions[region].includes(country)) {
                     return region;
                 }
             }
             return null;
         }
 
-        // Function to disable Antarctica and Greenland
         function disableAntarcticaAndGreenland() {
             geojson.eachLayer(function(layer) {
-                var name = layer.feature.properties.name || layer.feature.properties.ADMIN || layer.feature.properties.ADMIN_NAME || "Unknown Country";
-                if (name === "Antarctica" || name === "Greenland") {
+                var countryName = layer.feature.properties.name || layer.feature.properties.ADMIN || layer.feature.properties.ADMIN_NAME || "Unknown Country";
+                if (countryName === "Antarctica" || countryName === "Greenland") {
                     layer.setStyle({
-                        fillOpacity: 0,
-                        color: '#FFFFFF'
+                        fillColor: "#f0f0f0",
+                        weight: 0,
+                        color: "#f0f0f0",
+                        fillOpacity: 1
                     });
-                    layer.off();
+                    layer.off('mouseover');
+                    layer.off('mouseout');
                 }
             });
         }
 
-        // Function to create region layers for highlighting
         function createRegionLayers() {
             for (var region in regions) {
                 regionLayers[region] = [];
@@ -205,6 +209,7 @@
                 });
             }
         }
+
     </script>
 </body>
 </html>
